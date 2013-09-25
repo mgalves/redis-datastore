@@ -7,9 +7,12 @@ REDIS = redis.Redis()
 
 class Dict(object):
     
-    def __init__(self, name=None, connection=None):
-        self.pk = name if name else id(self)
-        self.connection = connection if connection else REDIS
+    def __init__(self, *args, **kwargs):
+        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
+        self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
+
+        if args: # initial data
+            self.update(args[0])
 
     def __setitem__(self, key, value):
         """

@@ -38,6 +38,26 @@ class TestDict(unittest.TestCase):
         self.assertEqual(self.redis.type(keys[0]), "hash")
         self.assertEqual(keys[0], "blablebli")
 
+    def test_initial_data(self):
+        self.assertFalse(self.redis.keys("*"))
+        d = structs.Dict()
+        self.assertEqual(len(d), 0)
+        
+        d = structs.Dict([])
+        self.assertEqual(len(d), 0)
+        
+        d = structs.Dict({})
+        self.assertEqual(len(d), 0)
+        
+        d = structs.Dict({"a": 1})
+        self.assertEqual(len(d), 1)
+        self.assertEqual(d["a"], "1")
+
+        d = structs.Dict((("c", 5), ("d", 6)))
+        self.assertEqual(len(d), 2)
+        self.assertEqual(d["c"], "5")
+        self.assertEqual(d["d"], "6")
+        
     def test_get_set_del(self):
         d = structs.Dict()
         d["a"] = 1
