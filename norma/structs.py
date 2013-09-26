@@ -191,38 +191,70 @@ class SortedSet(object):
 
 class List(object):
 
-    def __init__(self, name=None, connection=None):
-        self.pk = name if name else id(self)
-        self.connection = connection if connection else REDIS
+    def __init__(self, *args, **kwargs):
+        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
+        self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
+
+        if args: # initial data
+            self.extend(args[0])      
 
     def __len__(self):
+        """
+        LLEN
+        """
         return self.connection.llen(self.pk)
 
-    def __setitem__(self, index, value):
+    def _check_index(self, value):
         try:
-            index = long(index)
+            return long(value)
         except ValueError, e:
             raise TypeError("list indices must be integers")
+
+    def __setitem__(self, index, value):
+        """
+        LSET
+        """
+        index = self._check_index(index)
         try:
             self.connection.lset(self.pk, index, value)
         except redis.exceptions.ResponseError:
             raise IndexError("list index out of range")
 
+    def _get_range(self, start, stop):
+        """
+        LRANGE
+        """
+        # empty start equals range from first element
+        if start is None and stop is None:
+            return self.connection.lrange(self.pk, 0, -1)
 
-    def _slice(self, slice):
-        start = int(index_or_slice.start) if index_or_slice.start else 0
-        stop = index_or_slice.stop
-        step = index_or_slice.step
+        if not start is None and stop is None:
+            start = self._check_index(start)
+            return self.connection.lrange(self.pk, start, -1)
+
+        if start is None and not stop is None:
+            stop = self._check_index(stop)
+            if stop == 0:
+                return []
+             # python end index exclusive, redis inclusive
+            return self.connection.lrange(self.pk, 0, stop-1)
+
+        if not start is None and not stop is None:
+            start = self._check_index(start)
+            stop = self._check_index(stop)
+            if start == stop or stop == 0:
+                return []
+            return self.connection.lrange(self.pk, start, stop-1)
+
 
     def __getitem__(self, index_or_slice):
+        """
+        LINDEX / LRANGE
+        """
         if type(index_or_slice) == slice:
-            return self._slice(index_or_slice)    
+            return self._get_range(index_or_slice.start, index_or_slice.stop)    
         else:
-            try:
-                index = long(index_or_slice)
-            except ValueError, e:
-                raise TypeError("list indices must be integers")
-            
+            index = self._check_index(index_or_slice)
             pipe = self.connection.pipeline()
             pipe.llen(self.pk)
             pipe.lindex(self.pk, index)
@@ -233,29 +265,54 @@ class List(object):
                 raise IndexError("list index out of range") 
 
     def append(self, *values):
-        if len(values) == 1:
-            self.connection.rpush(self.pk, values[0])
+        """
+        RPUSH
+        """
+        if values:
+            self.connection.rpush(self.pk, *values)
+  
+    def extend(self, other_list):
+        """
+        RPUSH revisited
+        """
+        elements = list(other_list)
+        if elements:
+            self.connection.rpush(self.pk, *elements)
+
+    def insert(self, index, value):
+        """
+        LINSERT
+        """
+        index = self._check_index(index)
+        pipe = self.connection.pipeline()
+        pipe.llen(self.pk)
+        pipe.lindex(self.pk, index)
+        llen, reference_value = pipe.execute()
+        if llen and llen > index:
+            self.connection.linsert(self.pk, "BEFORE", reference_value, value)
         else:
-            pipe = self.connection.pipeline()
-            for value in values:
-                pipe.rpush(self.pk, value)
-            pipe.execute()              
+            raise IndexError("list index out of range") 
+     
+    def push(self, value):
+        """
+        LPUSH
+        """
+        return self.connection.lpush(self.pk, value)
 
-    def extend(l):
-        i = list(l)
-        self.connection.rpush(self.pk, *i)
+    def pop(self):
+        """
+        LPOP
+        """
+        return self.connection.lpop(self.pk)
 
-    def insert(i, x):
-        pass
+    def rpop(self):
+        """
+        RPOP
+        """
+        return self.connection.rpop(self.pk)
 
-    def remove(x):
-        pass
-
-    def pop(i):
-        pass
-
-    def index(x):
-        pass
-
-    def count(x):
-        pass
+    def trim(self, start, stop):
+        """
+        LTRIM
+        """
+        return self.connection.ltrim(self.pk, start, stop)
