@@ -416,7 +416,7 @@ class Set(RedisDataStructure):
         """
         if not isinstance(other, Set):
             raise TypeError("not a Set")
-            
+
         tempid = "temp:%d:%s:%s" % (random.randint(0,1000), self.pk, other.pk)
         pipe = self.connection.pipeline()
         pipe.scard(self.pk) # Current set size
@@ -427,21 +427,25 @@ class Set(RedisDataStructure):
         len_self, len_other, inter, len_inter, delete = pipe.execute()
         return len_inter == len_other and len_other < len_self
 
-    def members():
+    def members(self):
         """
         Returns all the members of the set
         SMEMBERS
         """
-        pass
+        return self.connection.smembers(self.pk)
 
-    def move_member_to(element, other_set):
+    def move(self, element, other_set):
         """
         SMOVE
         Move member from the set at source to the set at destination. This operation is atomic. 
         In every given moment the element  will appear to be a member of source or destination 
         for other clients.
         """
-        pass
+        if not isinstance(other_set, Set):
+            raise TypeError("not a Set")
+        result = self.connection.smove(self.pk, other_set.pk, element)
+        if not result:
+            raise KeyError("element not a member of source")
 
 
 class SortedSet(object):

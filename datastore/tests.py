@@ -775,5 +775,30 @@ class TestSet(unittest.TestCase):
         with self.assertRaises(TypeError):
             d1 < ["bla"]
 
+    def test_members(self):
+        d1 = structs.Set("a")
+        self.assertEqual(d1.members(), set(["a"]))
+        d1 = structs.Set("abcd")
+        self.assertEqual(d1.members(), set(["a", "b", "c", "d"]))
+        d1 = structs.Set()
+        self.assertEqual(d1.members(), set())
+
+    def test_momve_member(self):
+        d1 = structs.Set(["a", "b"])
+        d2 = structs.Set()
+        self.assertTrue("b" not in d2)
+        self.assertEqual(len(d2), 0)
+        self.assertTrue("b" in d1)
+        self.assertEqual(len(d1), 2)
+        d1.move("b", d2)
+        self.assertTrue("b" in d2)
+        self.assertEqual(len(d2), 1)
+        self.assertTrue("b" not in d1)
+        self.assertEqual(len(d1), 1)
+        with self.assertRaises(TypeError):
+            d1.move("a", "bla")
+        with self.assertRaises(KeyError):
+            d1.move("bla", d2)
+
 if __name__ == '__main__':
     unittest.main()
