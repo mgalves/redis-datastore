@@ -5,12 +5,22 @@ import redis
 REDIS = redis.Redis()
 
 
-class Dict(object):
-    
+class RedisDataStructure(object):
+
     def __init__(self, *args, **kwargs):
         self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
         self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
 
+    def __eq__(self, other):
+        return self.pk == other.pk
+
+    def __ne__(self, other):
+        return self.pk != other.pk
+
+class Dict(RedisDataStructure):
+    
+    def __init__(self, *args, **kwargs):
+        super(Dict, self).__init__(*args, **kwargs)        
         if args: # initial data
             self.update(args[0])
 
@@ -181,12 +191,10 @@ class Dict(object):
             raise TypeError("key's value must be int or float")
 
 
-class Set(object):
+class Set(RedisDataStructure):
 
     def __init__(self, *args, **kwargs):
-        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
-        self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
-
+        super(Set, self).__init__(*args, **kwargs)
         if args: # initial data
             elements = list(args[0])
             self.connection.sadd(self.pk, *elements)
@@ -267,16 +275,22 @@ class Set(object):
         set &= other & ...
         Update the set, keeping only elements found in it and all others.
         """
-        return intersection(*other_sets, destination=self.pk)
+        return self.intersection(*other_sets, destination=self)
 
-   def intersection(self, *other_sets, destination=None):
+    def intersection(self, *other_sets, **kwargs):
         """
         SINTER
-        set & other & ...
-        Return a new set with elements common to the set and all others.
+        Accepts an destination parameter, which must be a Set instance. 
+        If ommited, a new Set will be created, with elements common to the set and all others.
         """
-        if not destination:
+        if "destination" in kwargs and kwargs["destination"]:
+            destination = kwargs["destination"]
+            if not isinstance(destination, Set):
+                raise TypeError("destination not a Set")
+        else:
             destination = Set()
+        
+        # Sets to be intersected
         ids = [self.pk]
         for os in other_sets:
             if not isinstance(os, Set):
@@ -284,7 +298,7 @@ class Set(object):
             ids.append (os.pk)
 
         self.connection.sinterstore(destination.pk, *ids)
-        return new_set
+        return destination
 
     def difference_update(self, *others):
         """
@@ -376,12 +390,10 @@ class SortedSet(object):
     pass
 
 
-class List(object):
+class List(RedisDataStructure):
 
     def __init__(self, *args, **kwargs):
-        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
-        self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
-
+        super(List, self).__init__(*args, **kwargs)
         if args: # initial data
             self.extend(args[0])      
 
