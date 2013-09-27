@@ -14,7 +14,7 @@ class RedisDataStructure(object):
         else:
             random_integer = int(time.time()) * 1000 + random.randint(1, 1000)
             self.pk = "%d:%d" % (id(self), random_integer)
-            
+
         self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
 
     def __eq__(self, other):
@@ -342,14 +342,26 @@ class Set(RedisDataStructure):
         Return True if the set has no elements in common with other. 
         Sets are disjoint if and only if their intersection is the empty set.
         """
-        pass
+        if not isinstance(other, Set):
+            raise TypeError("not a Set")
+        return not len(self.connection.sinter(self.pk, other.pk))
 
     def issubset(self, other):
         """
         set <= other
         Test whether every element in the set is in other.
         """
-        pass
+        if not isinstance(other, Set):
+            raise TypeError("not a Set")
+
+        tempid = "temp:%d:%s:%s" % (random.randint(0,1000), self.pk, other.pk)
+        pipe = self.connection.pipeline()
+        pipe.scard(self.pk) # Current set size
+        pipe.sinterstore(tempid, self.pk, other.pk) # intersection result
+        pipe.scard(tempid) # intersection result size
+        pipe.delete(tempid) # removes intersection resulte
+        len_self, inter, len_inter, delete = pipe.execute()
+        return len_inter == len_self
 
     def __le__(self, other):
         """
@@ -363,13 +375,34 @@ class Set(RedisDataStructure):
         set < other
         Test whether the set is a proper subset of other, that is, set <= other and set != other.
         """
-        pass
+        if not isinstance(other, Set):
+            raise TypeError("not a Set")
+
+        tempid = "temp:%d:%s:%s" % (random.randint(0,1000), self.pk, other.pk)
+        pipe = self.connection.pipeline()
+        pipe.scard(self.pk) # Current set size
+        pipe.scard(other.pk) # other set size
+        pipe.sinterstore(tempid, self.pk, other.pk) # intersection result
+        pipe.scard(tempid) # intersection result size
+        pipe.delete(tempid) # removes intersection resulte
+        len_self, len_other, inter, len_inter, delete = pipe.execute()
+        return len_inter == len_self and len_other > len_self
            
     def issuperset(self, other):
         """
         Test whether every element in other is in the set.
         """
-        pass
+        if not isinstance(other, Set):
+            raise TypeError("not a Set")
+
+        tempid = "temp:%d:%s:%s" % (random.randint(0,1000), self.pk, other.pk)
+        pipe = self.connection.pipeline()
+        pipe.scard(other.pk) # Current set size
+        pipe.sinterstore(tempid, self.pk, other.pk) # intersection result
+        pipe.scard(tempid) # intersection result size
+        pipe.delete(tempid) # removes intersection resulte
+        len_other, inter, len_inter, delete = pipe.execute()
+        return len_inter == len_other
 
     def __ge__(self, other):
         """
@@ -379,9 +412,20 @@ class Set(RedisDataStructure):
 
     def __gt__(self, other):
         """
-        Test whether the set is a proper superset of other, that is, set >= other and set != other.
+        Test whether the set is a proper superset of other, that is, set > other and set != other.
         """
-        pass
+        if not isinstance(other, Set):
+            raise TypeError("not a Set")
+            
+        tempid = "temp:%d:%s:%s" % (random.randint(0,1000), self.pk, other.pk)
+        pipe = self.connection.pipeline()
+        pipe.scard(self.pk) # Current set size
+        pipe.scard(other.pk) # other set size
+        pipe.sinterstore(tempid, self.pk, other.pk) # intersection result
+        pipe.scard(tempid) # intersection result size
+        pipe.delete(tempid) # removes intersection resulte
+        len_self, len_other, inter, len_inter, delete = pipe.execute()
+        return len_inter == len_other and len_other < len_self
 
     def members():
         """
