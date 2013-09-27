@@ -182,7 +182,191 @@ class Dict(object):
 
 
 class Set(object):
-    pass
+
+    def __init__(self, *args, **kwargs):
+        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
+        self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
+
+        if args: # initial data
+            elements = list(args[0])
+            self.connection.sadd(self.pk, *elements)
+
+    def __contains__(self, key):
+        """
+        SISMEMBER
+        """
+        return self.connection.sismember(self.pk, key)
+
+    def __len__(self):
+        """
+        SCARD
+        """
+        return self.connection.scard(self.pk)
+
+    def update(self, *others):
+        """
+        SUNIONSTORE
+        set |= other | ...
+        Update the set, adding elements from all others.
+        """
+        pass
+
+    def add(self, *elements):
+        """
+        SADD
+        Add element element to the set.
+        """
+        self.connection.sadd(self.pk, *elements)
+
+    def remove(self, element):
+        """
+        SREM
+        Remove element from the set. Raises KeyError if elem is not contained in the set.
+        """
+        count = self.connection.srem(self.pk, element)
+        if not count:
+            raise KeyError("")
+
+    def discard(self, element):
+        """
+        SREM
+        Remove element from the set if it is present.
+        """
+        self.connection.srem(self.pk, element)
+
+    def pop(self):
+        """
+        SPOP
+        Remove and return an arbitrary element from the set. Raises KeyError if the set is empty.
+        """
+        random_value = self.connection.spop(self.pk)
+        if random_value:
+            return random_value
+        else:
+            raise KeyError("empty set")
+
+    def random(self, count=1):
+        """
+        SRANDMEMBER
+        When called with the additional count argument, return an array of count distinct elements 
+        if count is positive. If called with a negative count the behavior changes and the command 
+        is allowed to return the same element multiple times. In this case the numer of returned 
+        elements is the absolute value of the specified count.
+        """
+        return self.connection.srandmember(self.pk, count)
+
+    def clear(self):
+        """
+        Remove all elements from the set.
+        """
+        pass
+
+    def intersection_update(self, *other_sets):
+        """
+        SINTERSTORE
+        set &= other & ...
+        Update the set, keeping only elements found in it and all others.
+        """
+        ids = [self.pk]
+        for os in other_sets:
+            if not isinstance(os, Set):
+                raise TypeError("not a Set")
+            ids.append (os.pk)
+
+        self.connection.sinterstore(self.pk, *ids)
+
+    def difference_update(self, *others):
+        """
+        SDIFFSTORE
+        Update the set, removing elements found in others.
+        """
+        pass
+
+    def isdisjoint(self, other):
+        """
+        Return True if the set has no elements in common with other. 
+        Sets are disjoint if and only if their intersection is the empty set.
+        """
+        pass
+
+    def issubset(self, other):
+        """
+        set <= other
+        Test whether every element in the set is in other.
+        """
+        pass
+
+    def __le__(self, other):
+        """
+        set <= other
+        Test whether every element in the set is in other.
+        """
+        return self.issubset(other)
+
+    def __lt__(self, other):
+        """
+        set < other
+        Test whether the set is a proper subset of other, that is, set <= other and set != other.
+        """
+        pass
+           
+    def issuperset(self, other):
+        """
+        Test whether every element in other is in the set.
+        """
+        pass
+
+    def __ge__(self, other):
+        """
+        Test whether every element in other is in the set.
+        """
+        return self.issuperset(other)
+
+    def __gt__(self, other):
+        """
+        Test whether the set is a proper superset of other, that is, set >= other and set != other.
+        """
+        pass
+
+    def union(self, *others):
+        """
+        SUNION
+        set | other | ...
+        Return a new set with elements from the set and all others.
+        """
+        pass
+
+    def intersection(self, *others):
+        """
+        SINTER
+        set & other & ...
+        Return a new set with elements common to the set and all others.
+        """
+        pass
+
+    def difference(self, *other):
+        """
+        SDIFF
+        set - other - ...
+        Return a new set with elements in the set that are not in the others.
+        """
+        pass
+
+    def members():
+        """
+        Returns all the members of the set
+        SMEMBERS
+        """
+        pass
+
+    def move_member_to(element, other_set):
+        """
+        SMOVE
+        Move member from the set at source to the set at destination. This operation is atomic. 
+        In every given moment the element  will appear to be a member of source or destination 
+        for other clients.
+        """
+        pass
 
 
 class SortedSet(object):

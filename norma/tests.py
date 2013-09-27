@@ -360,5 +360,113 @@ class TestList(unittest.TestCase):
         with self.assertRaises(TypeError):
             d[10:"a"]
 
+
+
+class TestSet(unittest.TestCase):
+
+    def setUp(self):
+        self.redis = redis.Redis()
+        self.redis.flushdb()
+
+    def test_empty_list(self):
+        self.assertFalse(self.redis.keys("*"))
+        d = structs.Set()
+        self.assertEqual(len(d), 0)
+        self.assertFalse(1 in d)
+        self.assertFalse(self.redis.keys("*"))
+
+    def test_list_constructor(self):
+        self.assertFalse(self.redis.keys("*"))
+        d1 = structs.Set(["bla"])
+        keys = self.redis.keys("*")
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(self.redis.type(keys[0]), "set")
+        self.assertEqual(len(d1), 1)
+        self.assertTrue("bla" in d1)
+        d2 = structs.Set("bla")
+        keys = self.redis.keys("*")
+        self.assertEqual(len(keys), 2)
+        self.assertEqual(len(d2), 3)
+        self.assertTrue("b" in d2)
+        self.assertTrue("l" in d2)
+        self.assertTrue("a" in d2)
+        
+    def test_add_remove(self):
+        d = structs.Set()
+        self.assertEqual(len(d), 0)
+        d.add("a")
+        self.assertEqual(len(d), 1)
+        self.assertTrue("a" in d)
+        d.add("b", "c", "d")
+        self.assertEqual(len(d), 4)
+        self.assertTrue("a" in d)
+        self.assertTrue("b" in d)
+        self.assertTrue("c" in d)
+        self.assertTrue("d" in d)
+        d.discard("d")
+        self.assertEqual(len(d), 3)
+        self.assertTrue("a" in d)
+        self.assertTrue("b" in d)
+        self.assertTrue("c" in d)
+        self.assertTrue("d" not in d)
+        d.discard("f")
+        self.assertEqual(len(d), 3)
+        d.remove("b")
+        self.assertEqual(len(d), 2)
+        self.assertTrue("a" in d)
+        self.assertTrue("b" not in d)
+        self.assertTrue("c" in d)
+        self.assertTrue("d" not in d)
+        with self.assertRaises(KeyError):
+            d.remove("f")
+
+    def test_random_pop(self):
+        d = structs.Set("abcde")
+        self.assertEqual(len(d.random()), 1)
+        for i in range(1, 6):
+            random = d.random(count=i)
+            self.assertEqual(len(random), i)
+            for r in random:
+                self.assertTrue(r in d)
+    
+        for i in range(1, 6):
+            element = d.pop()
+            self.assertTrue(element in ["a", "b", "c", "d", "e"])
+            self.assertEqual(len(d), 5-i)
+            self.assertTrue(element not in d)
+
+        self.assertEqual(len(d), 0)
+        with self.assertRaises(KeyError):
+            d.pop()
+
+    def test_intersection_update(self):
+        d1 = structs.Set("abcd")
+        d2 = structs.Set("cd")
+        d3 = structs.Set("bc")
+        d1.intersection_update(d2)
+        self.assertEqual(len(d1), 2)
+        self.assertTrue("c" in d1)
+        self.assertTrue("d" in d1)
+        self.assertTrue("a" not in d1)
+        self.assertTrue("b" not in d1)
+        d1.intersection_update(d3)
+        self.assertEqual(len(d1), 1)
+        self.assertTrue("c" in d1)
+        self.assertTrue("d" not in d1)
+        self.assertTrue("a" not in d1)
+        self.assertTrue("b" not in d1)
+        d2.intersection_update(d1, d2)
+        self.assertEqual(len(d2), 1)
+        self.assertTrue("c" in d2)
+        self.assertTrue("d" not in d2)
+        self.assertTrue("a" not in d2)
+        self.assertTrue("b" not in d2)
+
+        with self.assertRaises(TypeError):
+            d2.intersection_update(["bla"])
+        with self.assertRaises(TypeError):
+            d2.intersection_update(d1, d2, ["bla"])
+
+
 if __name__ == '__main__':
     unittest.main()
