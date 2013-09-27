@@ -267,13 +267,24 @@ class Set(object):
         set &= other & ...
         Update the set, keeping only elements found in it and all others.
         """
+        return intersection(*other_sets, destination=self.pk)
+
+   def intersection(self, *other_sets, destination=None):
+        """
+        SINTER
+        set & other & ...
+        Return a new set with elements common to the set and all others.
+        """
+        if not destination:
+            destination = Set()
         ids = [self.pk]
         for os in other_sets:
             if not isinstance(os, Set):
                 raise TypeError("not a Set")
             ids.append (os.pk)
 
-        self.connection.sinterstore(self.pk, *ids)
+        self.connection.sinterstore(destination.pk, *ids)
+        return new_set
 
     def difference_update(self, *others):
         """
@@ -333,14 +344,6 @@ class Set(object):
         SUNION
         set | other | ...
         Return a new set with elements from the set and all others.
-        """
-        pass
-
-    def intersection(self, *others):
-        """
-        SINTER
-        set & other & ...
-        Return a new set with elements common to the set and all others.
         """
         pass
 
