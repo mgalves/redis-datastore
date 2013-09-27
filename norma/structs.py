@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import random
 import redis
+import time
 
 REDIS = redis.Redis()
 
 
 class RedisDataStructure(object):
-
     def __init__(self, *args, **kwargs):
-        self.pk = kwargs["name"] if "name" in kwargs and kwargs["name"] else id(self)
+        if "name" in kwargs and kwargs["name"]:
+            self.pk = kwargs["name"]
+        else:
+            random_integer = int(time.time()) * 1000 + random.randint(1, 1000)
+            self.pk = "%d:%d" % (id(self), random_integer)
+            
         self.connection = kwargs["connection"] if "connection" in kwargs and kwargs["connection"] else REDIS
 
     def __eq__(self, other):
@@ -17,8 +23,8 @@ class RedisDataStructure(object):
     def __ne__(self, other):
         return self.pk != other.pk
 
+
 class Dict(RedisDataStructure):
-    
     def __init__(self, *args, **kwargs):
         super(Dict, self).__init__(*args, **kwargs)        
         if args: # initial data
@@ -192,7 +198,6 @@ class Dict(RedisDataStructure):
 
 
 class Set(RedisDataStructure):
-
     def __init__(self, *args, **kwargs):
         super(Set, self).__init__(*args, **kwargs)
         if args: # initial data
@@ -211,13 +216,16 @@ class Set(RedisDataStructure):
         """
         return self.connection.scard(self.pk)
 
-    def update(self, *others):
+    def __str__(self):
+        return "Set([%s])" % (", ".join([m for m in self.connection.smembers(self.pk)]))
+
+    def update(self, *other_sets):
         """
         SUNIONSTORE
         set |= other | ...
         Update the set, adding elements from all others.
         """
-        pass
+        return self.union(*other_sets, destination=self)
 
     def add(self, *elements):
         """
@@ -269,6 +277,24 @@ class Set(RedisDataStructure):
         """
         pass
 
+    def _set_operation(self, operator, *other_sets, **kwargs):
+        if "destination" in kwargs and kwargs["destination"]:
+            destination = kwargs["destination"]
+            if not isinstance(destination, Set):
+                raise TypeError("destination not a Set")
+        else:
+            destination = Set()
+        
+        # Sets to be intersected
+        ids = [self.pk]
+        for os in other_sets:
+            if not isinstance(os, Set):
+                raise TypeError("not a Set")
+            ids.append(os.pk)
+
+        operator(destination.pk, *ids)
+        return destination
+
     def intersection_update(self, *other_sets):
         """
         SINTERSTORE
@@ -283,29 +309,33 @@ class Set(RedisDataStructure):
         Accepts an destination parameter, which must be a Set instance. 
         If ommited, a new Set will be created, with elements common to the set and all others.
         """
-        if "destination" in kwargs and kwargs["destination"]:
-            destination = kwargs["destination"]
-            if not isinstance(destination, Set):
-                raise TypeError("destination not a Set")
-        else:
-            destination = Set()
-        
-        # Sets to be intersected
-        ids = [self.pk]
-        for os in other_sets:
-            if not isinstance(os, Set):
-                raise TypeError("not a Set")
-            ids.append (os.pk)
+        op = self.connection.sinterstore
+        return self._set_operation(op, *other_sets, **kwargs)
 
-        self.connection.sinterstore(destination.pk, *ids)
-        return destination
-
-    def difference_update(self, *others):
+    def difference_update(self, *other_sets):
         """
         SDIFFSTORE
         Update the set, removing elements found in others.
         """
-        pass
+        return self.difference(*other_sets, destination=self)
+
+    def difference(self, *other_sets, **kwargs):
+        """
+        SDIFF
+        set - other - ...
+        Return a new set with elements in the set that are not in the others.
+        """
+        op = self.connection.sdiffstore
+        return self._set_operation(op, *other_sets, **kwargs)
+
+    def union(self, *other_sets, **kwargs):
+        """
+        SUNION
+        set | other | ...
+        Return a new set with elements from the set and all others.
+        """
+        op = self.connection.sunionstore
+        return self._set_operation(op, *other_sets, **kwargs)
 
     def isdisjoint(self, other):
         """
@@ -353,22 +383,6 @@ class Set(RedisDataStructure):
         """
         pass
 
-    def union(self, *others):
-        """
-        SUNION
-        set | other | ...
-        Return a new set with elements from the set and all others.
-        """
-        pass
-
-    def difference(self, *other):
-        """
-        SDIFF
-        set - other - ...
-        Return a new set with elements in the set that are not in the others.
-        """
-        pass
-
     def members():
         """
         Returns all the members of the set
@@ -391,7 +405,6 @@ class SortedSet(object):
 
 
 class List(RedisDataStructure):
-
     def __init__(self, *args, **kwargs):
         super(List, self).__init__(*args, **kwargs)
         if args: # initial data
